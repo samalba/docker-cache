@@ -232,7 +232,7 @@ func (cache *Cache) AddContainer(container *dockerclient.ContainerInfo) error {
 	if err != nil {
 		return err
 	}
-	cache.publishEvent("add_container", cache.id, container.Id)
+	cache.publishEvent("new_container", cache.id, container.Id)
 	return nil
 }
 
