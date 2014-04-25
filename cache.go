@@ -224,14 +224,22 @@ func (cache *Cache) SetContainerInfo(container *dockerclient.ContainerInfo) erro
 	c.Append("sadd", key, container.Id)
 	key = fmt.Sprintf("%s:images", CACHE_PREFIX)
 	c.Append("sadd", key, container.Image)
+	key = fmt.Sprintf("%s:images:%s:hosts", CACHE_PREFIX, container.Image)
+	c.Append("sadd", key, cache.id)
 	key = fmt.Sprintf("%s:images:%s:containers", CACHE_PREFIX, container.Image)
 	c.Append("sadd", key, container.Id)
 	c.Append("exec")
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		r := c.GetReply()
 		if r.Err != nil {
 			return r.Err
 		}
+	}
+
+	key = fmt.Sprintf("%s:images:%s", CACHE_PREFIX, container.Image)
+	r := cache.redisConn.Cmd("hincrby", key, "containers_running", 1)
+	if r.Err != nil {
+		return r.Err
 	}
 
 	return nil
@@ -262,12 +270,16 @@ func (cache *Cache) DeleteContainer(container *dockerclient.ContainerInfo) error
 	c.Append("del", key)
 	key = fmt.Sprintf("%s:hosts:%s:containers", CACHE_PREFIX, cache.id)
 	c.Append("srem", key, container.Id)
+	key = fmt.Sprintf("%s:images:%s:hosts", CACHE_PREFIX, container.Image)
+	c.Append("srem", key, cache.id)
 	key = fmt.Sprintf("%s:images:%s:containers", CACHE_PREFIX, container.Image)
 	c.Append("srem", key, container.Id)
 	key = fmt.Sprintf("%s:hosts:%s", CACHE_PREFIX, cache.id)
 	c.Append("hincrby", key, "containers_running", -1)
+	key = fmt.Sprintf("%s:images:%s", CACHE_PREFIX, container.Image)
+	c.Append("hincrby", key, "containers_running", -1)
 	c.Append("exec")
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 9; i++ {
 		r := c.GetReply()
 		if r.Err != nil {
 			return r.Err
