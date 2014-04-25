@@ -190,6 +190,7 @@ func (cache *Cache) SetContainerInfo(container *dockerclient.ContainerInfo) erro
 	for k, v := range m {
 		c.Append("hset", key, k, v)
 	}
+	c.Append("hset", key, "host", cache.id)
 	c.Append("expire", key, int(cache.ttl.Seconds()))
 	c.Append("exec")
 	for i := 0; i < len(m)+4; i++ {
