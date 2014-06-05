@@ -190,6 +190,7 @@ func (cache *Cache) SetContainerInfo(container *dockerclient.ContainerInfo) erro
 	for k, v := range m {
 		c.Append("hset", key, k, v)
 	}
+	c.Append("hset", key, "host", cache.id)
 	c.Append("expire", key, int(cache.ttl.Seconds()))
 	c.Append("exec")
 	for i := 0; i < len(m)+4; i++ {
@@ -198,6 +199,7 @@ func (cache *Cache) SetContainerInfo(container *dockerclient.ContainerInfo) erro
 			return r.Err
 		}
 	}
+
 	// Set the container's json
 	key += ":json"
 	b, err := json.Marshal(container)
@@ -215,6 +217,31 @@ func (cache *Cache) SetContainerInfo(container *dockerclient.ContainerInfo) erro
 			return r.Err
 		}
 	}
+
+	// Save container info to extra keys for easier identification
+	c.Append("multi")
+	key = fmt.Sprintf("%s:containers", CACHE_PREFIX)
+	c.Append("sadd", key, container.Id)
+	key = fmt.Sprintf("%s:images", CACHE_PREFIX)
+	c.Append("sadd", key, container.Image)
+	key = fmt.Sprintf("%s:images:%s:hosts", CACHE_PREFIX, container.Image)
+	c.Append("sadd", key, cache.id)
+	key = fmt.Sprintf("%s:images:%s:containers", CACHE_PREFIX, container.Image)
+	c.Append("sadd", key, container.Id)
+	c.Append("exec")
+	for i := 0; i < 6; i++ {
+		r := c.GetReply()
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+
+	key = fmt.Sprintf("%s:images:%s", CACHE_PREFIX, container.Image)
+	r := cache.redisConn.Cmd("hincrby", key, "containers_running", 1)
+	if r.Err != nil {
+		return r.Err
+	}
+
 	return nil
 }
 
@@ -243,10 +270,16 @@ func (cache *Cache) DeleteContainer(container *dockerclient.ContainerInfo) error
 	c.Append("del", key)
 	key = fmt.Sprintf("%s:hosts:%s:containers", CACHE_PREFIX, cache.id)
 	c.Append("srem", key, container.Id)
+	key = fmt.Sprintf("%s:images:%s:hosts", CACHE_PREFIX, container.Image)
+	c.Append("srem", key, cache.id)
+	key = fmt.Sprintf("%s:images:%s:containers", CACHE_PREFIX, container.Image)
+	c.Append("srem", key, container.Id)
 	key = fmt.Sprintf("%s:hosts:%s", CACHE_PREFIX, cache.id)
 	c.Append("hincrby", key, "containers_running", -1)
+	key = fmt.Sprintf("%s:images:%s", CACHE_PREFIX, container.Image)
+	c.Append("hincrby", key, "containers_running", -1)
 	c.Append("exec")
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 9; i++ {
 		r := c.GetReply()
 		if r.Err != nil {
 			return r.Err
