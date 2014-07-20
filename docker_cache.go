@@ -127,7 +127,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	docker, err := dockerclient.NewDockerClient(config.DockerURL)
+	docker, err := dockerclient.NewDockerClient(config.DockerURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
