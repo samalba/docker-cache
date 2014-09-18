@@ -103,11 +103,7 @@ func (cache *Cache) deleteHost(id string) {
 }
 
 func (cache *Cache) ClearExpiredHosts() error {
-	r := cache.redisConn.Cmd("smembers", CACHE_PREFIX+":hosts")
-	if r.Err != nil {
-		return r.Err
-	}
-	hosts, err := r.List()
+	hosts, err := cache.ListHosts()
 	if err != nil {
 		return err
 	}
@@ -349,4 +345,23 @@ func (cache *Cache) SetHostParam(key string, value string) error {
 		return r.Err
 	}
 	return nil
+}
+
+/*
+ * All Methods below are used to read data from the Cache
+*/
+
+func (cache *Cache) ListHosts() ([]string, error) {
+	r := cache.redisConn.Cmd("smembers", CACHE_PREFIX+":hosts")
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	hosts, err := r.List()
+	if err != nil {
+		return nil, err
+	}
+	return hosts, nil
+}
+
+func (cache *Cache) ListContainers(host string) ([]string, error) {
 }

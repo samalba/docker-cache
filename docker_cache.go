@@ -13,6 +13,7 @@ import (
 
 type Config struct {
 	Id             string
+	HttpApiAddress string
 	CacheURL       string
 	DockerURL      string
 	UpdateInterval time.Duration
@@ -108,6 +109,8 @@ func parseFlags() *Config {
 	config := &Config{}
 	flag.StringVar(&config.Id, "id", getHostname(),
 		"Id that will identify this host on the Cache (it should be unique to avoid conflicts)")
+	flag.StringVar(&config.HttpApiAddress, "listen", ":8000",
+		"Listen address for the HTTP API server")
 	flag.StringVar(&config.CacheURL, "cache", "redis://localhost:6379",
 		"Cache URL which will receive the data")
 	flag.StringVar(&config.DockerURL, "docker", "unix:///var/run/docker.sock",
@@ -125,15 +128,23 @@ func main() {
 	ttl := time.Duration(float64(config.UpdateInterval) * 1.5)
 	cache, err := NewCache(config.CacheURL, config.Id, ttl)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Cannot init the cache: %s", err)
 	}
 	docker, err := dockerclient.NewDockerClient(config.DockerURL, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Cannot init the docker client: %s", err)
 	}
 	rtInfo := &RuntimeInfo{config.Id, cache, docker, ttl}
 	log.Printf("Started monitoring Docker events (%s)\n", config.Id)
 	docker.StartMonitorEvents(dockerEventCallback, rtInfo)
+	go func() {
+		// Start the HTTP API
+		log.Printf("Starting API HTTP server on %s", config.HttpApiAddress)
+		err := StartHttpApi(cache, config.HttpApiAddress)
+		if err != nil {
+			log.Fatalf("Cannot start the HTTP API: %s", err)
+		}
+	}()
 	go func() {
 		// Garbage collect expired hosts at random interval
 		for {
